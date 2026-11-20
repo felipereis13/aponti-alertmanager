@@ -1,0 +1,66 @@
+groups:
+  - name: node_api_alerts
+    rules:
+      # API indisponível
+      - alert: ApiDown
+        expr: up{job="node_api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "API Node.js indisponível"
+          description: "O target {{ $labels.instance }} está DOWN há mais de 30s."
+
+      # Erros 5xx > 5%
+      - alert: HighHttp5xxErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="node_api", status_code=~"5.."}[1m]))
+            /
+            sum(rate(http_requests_total{job="node_api"}[1m]))
+          ) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa de erro 5xx acima de 5%"
+          description: "A API está retornando >5% de erros 5xx por mais de 1 minuto."
+
+      # Erros 4xx > 10%
+      - alert: HighHttp4xxErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="node_api", status_code=~"4.."}[1m]))
+            /
+            sum(rate(http_requests_total{job="node_api"}[1m]))
+          ) > 0.10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa de erro 4xx acima de 10%"
+          description: "A API está retornando >10% de erros 4xx por mais de 1 minuto."
+
+      # Latência p95 > 500ms
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="node_api"}[5m])) by (le, route)
+          ) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência p95 acima de 500ms na rota {{ $labels.route }}"
+          description: "95% das requisições levam mais de 500ms por mais de 1 minuto."
+
+      # Memória > 300 MB
+      - alert: HighNodeMemoryUsage
+        expr: process_resident_memory_bytes{job="node_api"} > 300 * 1024 * 1024
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso de memória do Node.js acima de 300MB"
+          description: "O processo Node.js está usando {{ $value | humanize }}B de RSS."
